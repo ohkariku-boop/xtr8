@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Xtr8 — Extract the signal from the noise</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+
+  :root{
+    --ink:#0A0D13;
+    --panel:#12161F;
+    --panel-2:#181D28;
+    --line:#232937;
+    --text:#E7EBF2;
+    --muted:#7C879C;
+    --bull:#37B387;
+    --bull-dim:#1E3D34;
+    --bear:#E15C5C;
+    --bear-dim:#3D2323;
+    --amber:#E8A33D;
+    --neutral:#5B6577;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--ink); color:var(--text); font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased;}
+  ::selection{background:var(--amber); color:#000;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .display{font-family:'Space Grotesk',sans-serif;}
+
+  a{color:inherit;}
+
+  /* ---------- Top bar ---------- */
+  header.top{
+    position:sticky; top:0; z-index:20;
+    background:rgba(10,13,19,0.92); backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);
+    padding:14px 20px;
+    display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;
+  }
+  .brand{display:flex; align-items:center; gap:10px;}
+  .brand .mark{
+    width:28px; height:28px; border-radius:6px;
+    background:linear-gradient(135deg, var(--bull), var(--amber));
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Space Grotesk'; font-weight:700; font-size:14px; color:#0A0D13;
+  }
+  .brand h1{font-family:'Space Grotesk'; font-size:17px; font-weight:700; letter-spacing:0.3px;}
+  .brand .sub{font-size:10.5px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase; margin-top:1px;}
+
+  .view-toggle{display:flex; background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:3px; gap:2px;}
+  .view-toggle button{
+    background:transparent; border:none; color:var(--muted); font-family:'Inter'; font-size:12.5px; font-weight:600;
+    padding:7px 14px; border-radius:6px; cursor:pointer; transition:.15s;
+  }
+  .view-toggle button.active{background:var(--ink); color:var(--text); box-shadow:0 0 0 1px var(--line);}
+
+  /* ---------- Layout ---------- */
+  main{max-width:1180px; margin:0 auto; padding:22px 20px 80px;}
+
+  .disclaimer{
+    background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--amber);
+    border-radius:6px; padding:12px 14px; font-size:12.5px; color:var(--muted); line-height:1.5; margin-bottom:20px;
+  }
+  .disclaimer b{color:var(--amber); font-weight:600;}
+
+  .class-tabs{display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;}
+  .class-tab{
+    background:var(--panel); border:1px solid var(--line); color:var(--muted);
+    font-family:'Space Grotesk'; font-weight:600; font-size:13px;
+    padding:9px 16px; border-radius:8px; cursor:pointer; transition:.15s; display:flex; align-items:center; gap:7px;
+  }
+  .class-tab.active{color:var(--text); border-color:var(--amber); box-shadow:0 0 0 1px var(--amber) inset;}
+  .class-tab .dot{width:6px; height:6px; border-radius:50%; background:var(--neutral);}
+  .class-tab.active .dot{background:var(--amber);}
+
+  .asset-row{display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap;}
+  .asset-chip{
+    background:var(--panel-2); border:1px solid var(--line); color:var(--muted);
+    font-family:'JetBrains Mono'; font-size:12px; font-weight:500;
+    padding:7px 12px; border-radius:20px; cursor:pointer; transition:.15s;
+  }
+  .asset-chip:hover{border-color:var(--neutral); color:var(--text);}
+  .asset-chip.active{background:var(--ink); color:var(--text); border-color:var(--bull); box-shadow:0 0 0 1px var(--bull) inset;}
+  .asset-chip.disabled{opacity:0.35; cursor:not-allowed;}
+
+  .grid{display:grid; grid-template-columns:1.55fr 1fr; gap:16px;}
+  @media (max-width:860px){ .grid{grid-template-columns:1fr;} }
+
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px;}
+  .card h2{font-family:'Space Grotesk'; font-size:14px; font-weight:600; margin-bottom:14px; display:flex; align-items:center; justify-content:space-between;}
+  .card h2 .tag{font-family:'JetBrains Mono'; font-size:10.5px; color:var(--muted); font-weight:400; text-transform:uppercase; letter-spacing:1px;}
+
+  .price-hero{display:flex; align-items:baseline; gap:12px; margin-bottom:2px;}
+  .price-hero .px{font-family:'JetBrains Mono'; font-size:32px; font-weight:700;}
+  .price-hero .chg{font-family:'JetBrains Mono'; font-size:14px; font-weight:600; padding:3px 8px; border-radius:5px;}
+  .chg.up{color:var(--bull); background:var(--bull-dim);}
+  .chg.down{color:var(--bear); background:var(--bear-dim);}
+  .asset-name{color:var(--muted); font-size:12.5px; margin-bottom:16px;}
+
+  canvas#priceChart{width:100%; max-height:280px;}
+
+  /* Confluence meter — signature element */
+  .conf-meter{margin-top:18px;}
+  .conf-meter .row{display:flex; align-items:center; gap:10px; margin-bottom:9px;}
+  .conf-meter .lbl{width:92px; font-size:11.5px; color:var(--muted); font-family:'JetBrains Mono';}
+  .conf-meter .track{flex:1; height:8px; background:var(--panel-2); border-radius:4px; position:relative; overflow:hidden;}
+  .conf-meter .fill{position:absolute; top:0; bottom:0; border-radius:4px; transition:width .4s ease;}
+  .conf-meter .val{width:40px; text-align:right; font-family:'JetBrains Mono'; font-size:11px; color:var(--muted);}
+
+  .score-band{
+    margin-top:16px; padding:14px; border-radius:10px; text-align:center;
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+  }
+  .score-band .bias{font-family:'Space Grotesk'; font-size:19px; font-weight:700;}
+  .score-band .score{font-family:'JetBrains Mono'; font-size:12px; color:var(--muted);}
+
+  .signal-card .row{display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--line);}
+  .signal-card .row:last-child{border-bottom:none;}
+  .signal-card .k{font-size:12.5px; color:var(--muted);}
+  .signal-card .v{font-family:'JetBrains Mono'; font-size:14px; font-weight:600;}
+  .v.entry{color:var(--text);}
+  .v.sl{color:var(--bear);}
+  .v.tp{color:var(--bull);}
+  .rr-pill{font-family:'JetBrains Mono'; font-size:11px; background:var(--panel-2); padding:3px 9px; border-radius:12px; color:var(--amber);}
+
+  .reasoning{margin-top:14px; font-size:12.5px; color:var(--muted); line-height:1.7;}
+  .reasoning li{margin-left:16px; margin-bottom:3px;}
+
+  .quant-only{display:none;}
+  body.quant .quant-only{display:block;}
+  body.quant .simple-only{display:none;}
+
+  .indicator-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px;}
+  .ind-box{background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:10px 12px;}
+  .ind-box .k{font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;}
+  .ind-box .v{font-family:'JetBrains Mono'; font-size:15px; font-weight:600;}
+
+  table.log{width:100%; border-collapse:collapse; font-size:12px; margin-top:8px;}
+  table.log th{text-align:left; color:var(--muted); font-weight:500; padding:6px 8px; border-bottom:1px solid var(--line); font-size:10.5px; text-transform:uppercase; letter-spacing:0.5px;}
+  table.log td{padding:7px 8px; border-bottom:1px solid var(--line); font-family:'JetBrains Mono'; font-size:11.5px;}
+  table.log tr:last-child td{border-bottom:none;}
+
+  .news-item{padding:10px 0; border-bottom:1px solid var(--line); font-size:12.5px;}
+  .news-item:last-child{border-bottom:none;}
+  .news-item a{text-decoration:none; color:var(--text);}
+  .news-item a:hover{color:var(--amber);}
+  .news-meta{color:var(--muted); font-size:11px; margin-top:3px; font-family:'JetBrains Mono';}
+
+  .loading{color:var(--muted); font-size:12.5px; padding:20px 0; text-align:center;}
+  .empty{color:var(--muted); font-size:12px; padding:14px 0;}
+
+  footer{text-align:center; color:var(--muted); font-size:11.5px; padding:30px 0 10px; border-top:1px solid var(--line); margin-top:30px;}
+
+
+  :root{
+    --ink:#0A0D13;
+    --panel:#12161F;
+    --panel-2:#181D28;
+    --line:#232937;
+    --text:#E7EBF2;
+    --muted:#7C879C;
+    --bull:#37B387;
+    --bull-dim:#1E3D34;
+    --bear:#E15C5C;
+    --amber:#E8A33D;
+    --neutral:#5B6577;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--ink); color:var(--text); font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased; line-height:1.5;}
+  ::selection{background:var(--amber); color:#000;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .display{font-family:'Space Grotesk',sans-serif;}
+  a{color:inherit;}
+  section{max-width:980px; margin:0 auto; padding:90px 24px;}
+  @media(max-width:700px){ section{padding:60px 20px;} }
+  h2.section-title{font-family:'Space Grotesk'; font-size:28px; font-weight:700; margin-bottom:8px;}
+  .eyebrow{font-family:'JetBrains Mono'; font-size:11.5px; letter-spacing:2px; text-transform:uppercase; color:var(--amber); margin-bottom:10px;}
+  .section-sub{color:var(--muted); font-size:15px; max-width:620px; margin-bottom:40px;}
+
+  /* ---------- Nav ---------- */
+  nav{
+    position:sticky; top:0; z-index:30; background:rgba(10,13,19,0.85); backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line); padding:16px 24px; display:flex; align-items:center; justify-content:space-between;
+  }
+  .brand{display:flex; align-items:center; gap:10px;}
+  .brand .mark{width:26px; height:26px; border-radius:6px; background:linear-gradient(135deg,var(--bull),var(--amber)); display:flex; align-items:center; justify-content:center; font-family:'Space Grotesk'; font-weight:700; font-size:13px; color:#0A0D13;}
+  .brand span{font-family:'Space Grotesk'; font-size:17px; font-weight:700;}
+  nav .links{display:flex; gap:22px; font-size:13px; color:var(--muted);}
+  nav .links a:hover{color:var(--text);}
+  @media(max-width:640px){ nav .links{display:none;} }
+
+  /* ---------- Hero ---------- */
+  .hero{padding:110px 24px 70px; text-align:center;}
+  .hero .eyebrow{justify-content:center; display:flex;}
+  .hero h1{font-family:'Space Grotesk'; font-size:48px; font-weight:700; line-height:1.1; max-width:760px; margin:0 auto 18px;}
+  .hero h1 .accent{color:var(--amber);}
+  .hero p{color:var(--muted); font-size:16.5px; max-width:560px; margin:0 auto 30px;}
+  @media(max-width:640px){ .hero h1{font-size:32px;} }
+
+  .cta-row{display:flex; gap:12px; justify-content:center; flex-wrap:wrap;}
+  .btn{font-family:'Space Grotesk'; font-weight:600; font-size:14.5px; padding:13px 26px; border-radius:9px; cursor:pointer; border:none; text-decoration:none; display:inline-block;}
+  .btn.primary{background:var(--amber); color:#0A0D13;}
+  .btn.ghost{background:transparent; border:1px solid var(--line); color:var(--text);}
+
+  /* mock terminal preview */
+  .mock{
+    max-width:640px; margin:60px auto 0; background:var(--panel); border:1px solid var(--line); border-radius:14px;
+    padding:20px; text-align:left; box-shadow:0 30px 60px -30px rgba(0,0,0,0.6);
+  }
+  .mock .bar{display:flex; gap:6px; margin-bottom:16px;}
+  .mock .bar span{width:9px; height:9px; border-radius:50%; background:var(--line);}
+  .mock .row{display:flex; justify-content:space-between; font-family:'JetBrains Mono'; font-size:13px; padding:8px 0; border-bottom:1px solid var(--line);}
+  .mock .row:last-child{border-bottom:none;}
+  .mock .row .bull{color:var(--bull); font-weight:700;}
+  .mock .row .k{color:var(--muted);}
+
+  /* ---------- Now vs Next vs Final (build log) ---------- */
+  .stage{display:flex; gap:22px; padding:26px 0; border-bottom:1px solid var(--line);}
+  .stage:last-child{border-bottom:none;}
+  .stage .tag{
+    font-family:'JetBrains Mono'; font-size:12px; font-weight:700; white-space:nowrap; height:fit-content;
+    padding:5px 11px; border-radius:6px; margin-top:2px;
+  }
+  .tag.v0{background:var(--panel-2); color:var(--muted); border:1px solid var(--line);}
+  .tag.v1{background:rgba(232,163,61,0.12); color:var(--amber); border:1px solid rgba(232,163,61,0.3);}
+  .tag.v2{background:var(--bull-dim); color:var(--bull); border:1px solid rgba(55,179,135,0.3);}
+  .stage h3{font-family:'Space Grotesk'; font-size:18px; margin-bottom:6px;}
+  .stage .status{font-family:'JetBrains Mono'; font-size:11px; color:var(--muted); margin-bottom:12px; text-transform:uppercase; letter-spacing:0.5px;}
+  .stage ul{margin-left:18px; color:var(--muted); font-size:14.5px;}
+  .stage li{margin-bottom:6px;}
+  .stage li b{color:var(--text); font-weight:600;}
+
+  /* ---------- Pricing ---------- */
+  .pricing-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:16px;}
+  @media(max-width:760px){ .pricing-grid{grid-template-columns:1fr;} }
+  .plan{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:26px 22px; display:flex; flex-direction:column;}
+  .plan.highlight{border-color:var(--amber); box-shadow:0 0 0 1px var(--amber);}
+  .plan .name{font-family:'Space Grotesk'; font-size:19px; font-weight:700; margin-bottom:4px;}
+  .plan .price{font-family:'JetBrains Mono'; font-size:30px; font-weight:700; margin:10px 0 2px;}
+  .plan .price span{font-size:13px; color:var(--muted); font-weight:400;}
+  .plan .for{font-size:12.5px; color:var(--muted); margin-bottom:18px;}
+  .plan ul{list-style:none; flex:1;}
+  .plan li{font-size:13.5px; color:var(--muted); padding:7px 0; border-bottom:1px solid var(--line); display:flex; gap:8px;}
+  .plan li:last-child{border-bottom:none;}
+  .plan li .ck{color:var(--bull); font-weight:700;}
+  .plan li .x{color:var(--neutral); font-weight:700;}
+  .plan .btn{margin-top:20px; text-align:center;}
+  .badge{font-family:'JetBrains Mono'; font-size:10.5px; color:var(--ink); background:var(--amber); padding:3px 10px; border-radius:20px; align-self:flex-start; margin-bottom:10px; font-weight:700;}
+
+  /* ---------- Trust / honesty section ---------- */
+  .honesty{background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--amber); border-radius:10px; padding:26px;}
+  .honesty p{color:var(--muted); font-size:14.5px; margin-bottom:12px;}
+  .honesty p:last-child{margin-bottom:0;}
+  .honesty b{color:var(--text);}
+
+  /* ---------- FAQ ---------- */
+  .faq-item{border-bottom:1px solid var(--line); padding:6px 0;}
+  .faq-item:last-child{border-bottom:none;}
+  .faq-item summary{
+    list-style:none; cursor:pointer; padding:16px 0; font-family:'Space Grotesk'; font-weight:600; font-size:15.5px;
+    display:flex; justify-content:space-between; align-items:center; gap:12px;
+  }
+  .faq-item summary::-webkit-details-marker{display:none;}
+  .faq-item summary .num{font-family:'JetBrains Mono'; color:var(--amber); font-size:12px; margin-right:10px;}
+  .faq-item summary .plus{color:var(--muted); font-family:'JetBrains Mono'; font-size:18px; flex-shrink:0;}
+  .faq-item[open] summary .plus{color:var(--amber);}
+  .faq-item .answer{color:var(--muted); font-size:14px; line-height:1.7; padding:0 0 20px; max-width:680px;}
+  .faq-item .answer b{color:var(--text); font-weight:600;}
+
+  footer{text-align:center; padding:50px 24px 40px; border-top:1px solid var(--line); color:var(--muted); font-size:12.5px;}
+
+</style>
+</head>
+<body>
+
+<div id="screen-landing">
+<nav>
+  <div class="brand"><div class="mark">X</div><span>Xtr8</span></div>
+  <div class="links">
+    <a href="#now">What it does now</a>
+    <a href="#roadmap">Roadmap</a>
+    <a href="#pricing">Pricing</a>
+    <a href="#faq">FAQ</a>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="eyebrow">Market signal terminal</div>
+  <h1>Extract the signal.<br>Leave the <span class="accent">noise</span>.</h1>
+  <p>Xtr8 reads trend, momentum, volatility and volume across forex, crypto and commodities — and shows you exactly why it thinks what it thinks. No black box. No "trust me."</p>
+  <div class="cta-row">
+    <a class="btn primary" href="#pricing">See what's free</a>
+    <a class="btn ghost" href="javascript:void(0)" onclick="showApp()">See it in action →</a>
+  </div>
+
+  <div class="mock">
+    <div class="bar"><span></span><span></span><span></span></div>
+    <div style="font-family:'JetBrains Mono'; font-size:10px; letter-spacing:1px; text-transform:uppercase; color:var(--amber); margin-bottom:10px; text-align:center;">Illustrative example — not a live signal</div>
+    <div class="row"><span class="k">BTC/USD</span><span class="bull">BULLISH · 74/100</span></div>
+    <div class="row"><span class="k">Entry</span><span>64,210</span></div>
+    <div class="row"><span class="k">Stop-loss</span><span>62,840</span></div>
+    <div class="row"><span class="k">Take-profit</span><span>66,950</span></div>
+    <div class="row"><span class="k">Risk : Reward</span><span>1 : 2</span></div>
+  </div>
+</section>
+
+<section id="now">
+  <div class="eyebrow">Right now — v0.1 (MVP)</div>
+  <h2 class="section-title">What you can use today</h2>
+  <p class="section-sub">This already runs on live public market data — not a mockup. Here's exactly what it does and doesn't do yet.</p>
+
+  <div class="stage">
+    <span class="tag v0">CAN</span>
+    <div>
+      <h3>Read the market in real time</h3>
+      <ul>
+        <li>Live prices for <b>5 major cryptocurrencies</b>, <b>5 forex pairs</b>, and <b>gold, silver &amp; oil</b></li>
+        <li>A full technical engine running underneath: trend (EMA), momentum (RSI, MACD), volatility (Bollinger Bands, ATR), and volume where it exists</li>
+        <li>A transparent confluence score (0–100) that shows which factors are driving it — not just a verdict</li>
+        <li>Suggested entry, stop-loss and take-profit, calculated from real volatility — not guessed</li>
+        <li>A Simple view for quick reads and a Quant view with the raw indicator numbers</li>
+      </ul>
+    </div>
+  </div>
+  <div class="stage">
+    <span class="tag v0">CAN'T YET</span>
+    <div>
+      <h3>Track record, real news, custom weighting</h3>
+      <ul>
+        <li>No persistent history yet — signals reset when you refresh the page</li>
+        <li>"Market chatter" is community posts, not verified financial news</li>
+        <li>No alerts — you have to check it yourself</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="roadmap">
+  <div class="eyebrow">Where it's going</div>
+  <h2 class="section-title">The roadmap</h2>
+  <p class="section-sub">Built in stages, in the open. Each stage adds something the last one was honest about not having.</p>
+
+  <div class="stage">
+    <span class="tag v1">v1.0 · NEXT</span>
+    <div>
+      <h3>Prove it, don't just claim it</h3>
+      <div class="status">Focus: track record + reach</div>
+      <ul>
+        <li><b>Persistent signal log</b> — every call timestamped and scored against what actually happened, publicly visible</li>
+        <li><b>Full asset coverage</b> — oil, silver, major indices, more crypto pairs</li>
+        <li><b>Multi-timeframe confluence</b> — 1H, 4H and 1D read together instead of one snapshot</li>
+        <li><b>Real news integration</b> — actual financial news with basic sentiment tagging, not just forum chatter</li>
+        <li><b>Alerts</b> — get notified when a new high-confluence setup appears, instead of checking manually</li>
+        <li><b>Backtesting</b> — run the same logic against years of history and see the actual hit rate, not a promise</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="stage">
+    <span class="tag v2">v2.0 · FINAL</span>
+    <div>
+      <h3>Built for people who trade for a living too</h3>
+      <div class="status">Focus: depth + control</div>
+      <ul>
+        <li><b>Custom strategy builder</b> — adjust how much weight trend vs momentum vs volume carries, save your own model</li>
+        <li><b>Order-flow &amp; volume-profile analysis</b> for assets where that data exists</li>
+        <li><b>Raw API access</b> — pull scored signals as JSON directly into your own systems or bots</li>
+        <li><b>Paper-trading mode</b> against live signals, so you can verify performance before risking anything</li>
+        <li><b>White-label / institutional licensing</b> — the tier aimed at teams and firms who want this logic inside their own tools</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="pricing">
+  <div class="eyebrow">Free vs paid</div>
+  <h2 class="section-title">Use it free. Pay when it's saving or making you money.</h2>
+  <p class="section-sub">The core reasoning engine stays free forever — you're not paying to unlock "the real signal." You're paying for coverage, history, and speed.</p>
+
+  <div class="pricing-grid">
+    <div class="plan">
+      <div class="name">Free</div>
+      <div class="price">$0</div>
+      <div class="for">For traders checking a setup before they take it</div>
+      <ul>
+        <li><span class="ck">✓</span> Crypto, forex &amp; gold, live</li>
+        <li><span class="ck">✓</span> Full confluence engine + reasoning</li>
+        <li><span class="ck">✓</span> Entry / SL / TP on demand</li>
+        <li><span class="x">✕</span> No persistent history</li>
+        <li><span class="x">✕</span> No alerts</li>
+        <li><span class="x">✕</span> No oil, silver or indices</li>
+      </ul>
+      <a class="btn ghost" href="javascript:void(0)" onclick="showApp()" style="text-align:center;">Use free →</a>
+    </div>
+
+    <div class="plan highlight">
+      <div class="badge">MOST USEFUL</div>
+      <div class="name">Pro</div>
+      <div class="price">$19<span>/mo</span></div>
+      <div class="for">For active traders who want history and speed</div>
+      <ul>
+        <li><span class="ck">✓</span> Everything in Free</li>
+        <li><span class="ck">✓</span> Full asset coverage — oil, silver, indices</li>
+        <li><span class="ck">✓</span> Persistent tracked history + real hit-rate stats</li>
+        <li><span class="ck">✓</span> Multi-timeframe confluence</li>
+        <li><span class="ck">✓</span> Real-time alerts</li>
+        <li><span class="ck">✓</span> Backtesting tool</li>
+      </ul>
+      <a class="btn primary" href="#" style="text-align:center;">Join the waitlist</a>
+    </div>
+
+    <div class="plan">
+      <div class="name">Desk / Institutional</div>
+      <div class="price">Custom</div>
+      <div class="for">For firms, funds, and serious quant teams</div>
+      <ul>
+        <li><span class="ck">✓</span> Everything in Pro</li>
+        <li><span class="ck">✓</span> Raw API access to scored signals</li>
+        <li><span class="ck">✓</span> Custom strategy weighting</li>
+        <li><span class="ck">✓</span> Order-flow &amp; volume-profile data</li>
+        <li><span class="ck">✓</span> White-label / embed licensing</li>
+        <li><span class="ck">✓</span> Direct line to the roadmap</li>
+      </ul>
+      <a class="btn ghost" href="#" style="text-align:center;">Talk to us</a>
+    </div>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="eyebrow">For traders who've seen every "signal bot" pitch before</div>
+  <h2 class="section-title">The 10 questions worth asking</h2>
+  <p class="section-sub">We'd rather you ask these than assume the answers. Every one is answered straight, including the ones where the honest answer is "not yet."</p>
+
+  <div>
+    <details class="faq-item" open>
+      <summary><span><span class="num">01</span>What is Xtr8 actually doing under the hood?</span><span class="plus">+</span></summary>
+      <div class="answer">A deterministic technical-confluence engine, not an AI black box. It computes trend (EMA20/EMA50 alignment), momentum (RSI, MACD histogram), volatility (Bollinger Bands, ATR), and volume/participation where real volume exists — then combines them into a weighted 0–100 score. Every number it shows you, you could recalculate by hand from the same price data. <b>Nothing is hidden from you</b> — the Quant view shows the raw indicator values behind every call.</div>
+    </details>
+
+    <details class="faq-item">
+      <summary><span><span class="num">02</span>Does it use order flow, footprint charts, or Level 2 data?</span><span class="plus">+</span></summary>
+      <div class="answer"><b>Not yet, and we're not going to pretend otherwise.</b> Real order-flow analysis (delta, footprint charts, depth-of-book) needs paid tick-level or Level 2 exchange feeds — that's genuinely expensive infrastructure, not a checkbox. It's on the roadmap for the Desk/Institutional tier once a real data feed is wired in. Today's edge is rigorous, transparent price-action confluence — a different thing, done honestly, not order flow dressed up as a buzzword.</div>
+    </details>
+
+    <details class="faq-item">
+      <summary><span><span class="num">03</span>What timeframes does it actually read?</span><span class="plus">+</span></summary>
+      <div class="answer">Right now: a single timeframe per asset (roughly daily-to-4H resolution depending on the market). It does not yet combine 1H/4H/1D into one read — that multi-timeframe confluence is the first thing being built for v1.0, because reading one timeframe in isolation is a real limitation, not a feature.</div>
+    </details>
+
+    <details class="faq-item">
+      <summary><span><span class="num">04</span>How exactly are entry, stop-loss and take-profit calculated?</span><span class="plus">+</span></summary>
+      <div class="answer">Plain formula, no mystery: stop-loss sits 1.5× ATR(14) from entry in the direction against the trade; take-profit is set at 2× that risk distance, for a fixed 1:2 reward-to-risk. It's disclosed so you can override it with your own risk parameters — it's a starting point, not a command.</div>
+    </details>
+
+    <details class="faq-item">
+      <summary><span><span class="num">05</span>What's the win rate?</span><span class="plus">+</span></summary>
+      <div class="answer">We don't publish a number, because we haven't earned the right to yet. Every signal you view gets timestamped and logged. That log — not a marketing claim — becomes the actual track record over time. If a tool shows you a win rate on day one, ask where the trades came from.</div>
+    </details>
+
+    <details class="faq-item">
+      <summary><span><span class="num">06</span>How is this different from me just reading the same indicators on TradingView myself?</span><span class="plus">+</span></summary>
+      <div class="answer">Honestly — the underlying math is the same math. The value isn't a secret indicator; it's doing that calculation consistently, instantly, across multiple assets, with the weighting and reasoning shown in one place instead of you eyeballing five charts and doing it slightly differently each time. Speed and discipline, not sorcery.</div>
+    </details>
+
+    <details class="faq-item">
+      <summary><span><span class="num">07</span>Does it factor in news or fundamentals?</span><span class="plus">+</span></summary>
+      <div class="answer">Currently: community chatter (public forum posts) as a rough, unverified sentiment gauge — explicitly labeled as such, not presented as vetted news. Real financial news with sentiment scoring is a v1.0 feature, once it's wired through a proper news API rather than scraped forum posts.</div>
+    </details>
+
+    <details class="faq-item">
+      <summary><span><span class="num">08</span>Can I adjust the model to match my own trading style?</span><span class="plus">+</span></summary>
+      <div class="answer">Not in this version. A custom strategy builder — where you set how much weight trend vs. momentum vs. volume carries, and save your own configuration — is planned for the final version, aimed squarely at traders and quants who want the engine, not just its default output.</div>
+    </details>
+
+    <details class="faq-item">
+      <summary><span><span class="num">09</span>Why is there no volume reading on forex pairs?</span><span class="plus">+</span></summary>
+      <div class="answer">Because spot FX is an over-the-counter market — there's no single, centralized volume figure the way there is for a listed stock or a crypto exchange. Rather than invent a number, the model substitutes volatility expansion (change in ATR) as a disclosed proxy for participation. It's flagged as a proxy every time, not presented as real volume.</div>
+    </details>
+
+    <details class="faq-item">
+      <summary><span><span class="num">10</span>Is this financial advice, or a guarantee of anything?</span><span class="plus">+</span></summary>
+      <div class="answer">No, and no. It's a decision-support tool built from disclosed technical-analysis math. No system — this one included — can guarantee an outcome in these markets. Position sizing, final judgment, and risk are always yours.</div>
+    </details>
+  </div>
+</section>
+
+<section>
+  <div class="honesty">
+    <p><b>Why we're telling you what this can't do yet.</b> Every trading tool that launches claiming "accurate signals" is either overselling or about to cost someone money. Xtr8's bet is the opposite: show the reasoning, log the track record in public, and let the numbers earn trust over time instead of asking for it up front.</p>
+    <p>Nothing on this page is financial advice, and no version of Xtr8 — free, Pro, or Desk — will ever guarantee an outcome. What gets better with each version is transparency, coverage, and how much of your own judgment you can plug into the model.</p>
+  </div>
+</section>
+
+<footer>
+  Xtr8 — built in public, one honest version at a time.
+</footer>
+</div>
+
+<div id="screen-app" style="display:none;">
+<header class="top">
+  <div class="brand">
+    <div class="mark">X</div>
+    <div>
+      <h1>Xtr8</h1>
+      <div class="sub">Market Signal Terminal</div>
+    </div>
+  </div>
+  <a href="javascript:void(0)" onclick="showLanding()" style="font-size:12px; color:var(--muted); text-decoration:none; margin-right:4px;" class="mono">About Xtr8 →</a>
+  <div class="view-toggle">
+    <button id="btnSimple" class="active">Simple</button>
+    <button id="btnQuant">Quant</button>
+  </div>
+</header>
+
+<main>
+  <div class="disclaimer">
+    <b>Read this first.</b> Every signal below is generated from public price data and standard technical-analysis math (trend, momentum, volatility, volume) — not a prediction. No model, including this one, can guarantee outcomes in these markets. Nothing here is financial advice. Position size based on the stop-loss distance, never risk more than you can afford to lose, and treat this as one input among many.
+  </div>
+
+  <div class="class-tabs" id="classTabs"></div>
+  <div class="asset-row" id="assetRow"></div>
+
+  <div class="grid">
+    <div>
+      <div class="card">
+        <h2><span id="assetTitle">—</span> <span class="tag" id="assetTag">loading</span>
+          <span style="margin-left:auto; display:flex; align-items:center; gap:10px;">
+            <span class="tag" id="lastUpdated"></span>
+            <button id="refreshBtn" title="Fetch fresh data now" style="background:var(--panel-2); border:1px solid var(--line); color:var(--text); font-family:'JetBrains Mono'; font-size:11.5px; padding:5px 11px; border-radius:6px; cursor:pointer;">⟳ Refresh</button>
+          </span>
+        </h2>
+        <div id="priceHeroWrap">
+          <div class="price-hero"><span class="px mono" id="pxNow">—</span><span class="chg mono" id="pxChg">—</span></div>
+          <div class="asset-name" id="assetSub">—</div>
+        </div>
+        <div id="errorBanner" style="display:none; background:var(--bear); background:rgba(225,92,92,0.12); border:1px solid rgba(225,92,92,0.4); color:#F0AFAF; border-radius:8px; padding:10px 12px; font-size:12.5px; margin-bottom:14px;"></div>
+        <canvas id="priceChart" height="90"></canvas>
+
+        <div class="quant-only">
+          <h2 style="margin-top:20px;">Indicator Readout <span class="tag">raw values</span></h2>
+          <div class="indicator-grid" id="indicatorGrid"></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <h2>Expert Analysis <span class="tag">via FXStreet, requires backend</span></h2>
+        <div id="newsBox" class="loading">Checking for live chatter…</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card signal-card">
+        <h2>Signal <span class="tag" id="signalTime">—</span></h2>
+        <div id="scoreBandWrap"></div>
+        <div class="conf-meter" id="confMeter"></div>
+        <div style="margin-top:16px;" id="tradeLevels"></div>
+        <div class="reasoning" id="reasoning"></div>
+      </div>
+
+      <div class="card quant-only" style="margin-top:16px;">
+        <h2>Signal Log <span class="tag">this session</span></h2>
+        <div id="logWrap"><div class="loading">Loading your signal history…</div></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Data: Binance (crypto, with CoinGecko fallback), Twelve Data (forex &amp; commodities — real intraday, not daily-only).<br>
+    Signal history is saved via Claude's built-in storage — it persists here, but won't carry over once deployed to Netlify. Swap the <span class="mono">saveSignalToLog</span> / <span class="mono">loadSignalLog</span> functions to a real backend (Supabase works well) to keep this working after deploy.<br>
+    Built for research and decision support, not execution advice.
+  </footer>
+</main>
+</div>
+
+<script>
+
+let appInitialized = false;
+function showApp(){
+  document.getElementById('screen-landing').style.display = 'none';
+  document.getElementById('screen-app').style.display = 'block';
+  window.scrollTo(0,0);
+  if(!appInitialized){
+    appInitialized = true;
+    renderClassTabs();
+    renderAssetRow();
+    loadSignalLog();
+    loadAsset();
+    document.getElementById('refreshBtn').onclick = ()=> loadAsset();
+  }
+}
+function showLanding(){
+  document.getElementById('screen-app').style.display = 'none';
+  document.getElementById('screen-landing').style.display = 'block';
+  window.scrollTo(0,0);
+}
+
+
+
+/* ============================================================
+   DATA SOURCE LAYER — swap in a paid feed here later
+   ============================================================ */
+const ASSET_CLASSES = {
+  crypto: {
+    label: 'Crypto', icon:'●',
+    assets: [
+      {id:'bitcoin', bnb:'BTCUSDT', symbol:'BTC/USD', name:'Bitcoin'},
+      {id:'ethereum', bnb:'ETHUSDT', symbol:'ETH/USD', name:'Ethereum'},
+      {id:'solana', bnb:'SOLUSDT', symbol:'SOL/USD', name:'Solana'},
+      {id:'ripple', bnb:'XRPUSDT', symbol:'XRP/USD', name:'XRP'},
+      {id:'binancecoin', bnb:'BNBUSDT', symbol:'BNB/USD', name:'BNB'},
+    ]
+  },
+  forex: {
+    label:'Forex', icon:'●',
+    assets:[
+      {from:'EUR', to:'USD', symbol:'EUR/USD', name:'Euro / US Dollar'},
+      {from:'GBP', to:'USD', symbol:'GBP/USD', name:'British Pound / US Dollar'},
+      {from:'USD', to:'JPY', symbol:'USD/JPY', name:'US Dollar / Japanese Yen'},
+      {from:'AUD', to:'USD', symbol:'AUD/USD', name:'Australian Dollar / US Dollar'},
+      {from:'USD', to:'CHF', symbol:'USD/CHF', name:'US Dollar / Swiss Franc'},
+    ]
+  },
+  commodities: {
+    label:'Commodities', icon:'●',
+    assets:[
+      {symbol:'XAU/USD', name:'Gold (spot)'},
+      {symbol:'XAG/USD', name:'Silver (spot)'},
+      {symbol:'WTI/USD', name:'Crude Oil (WTI)'},
+    ]
+  }
+};
+
+let state = {
+  cls: 'crypto',
+  assetIdx: 0,
+  quant: false,
+  chart: null,
+  log: []
+};
+
+/* ---------- Fetchers ---------- */
+async function fetchCryptoBinance(asset){
+  const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${asset.bnb}&interval=4h&limit=180`);
+  if(!res.ok) throw new Error(`Binance HTTP ${res.status}`);
+  const rows = await res.json();
+  if(!Array.isArray(rows) || rows.length===0) throw new Error('Binance returned no data');
+  // kline row: [openTime, open, high, low, close, volume, closeTime, ...]
+  return {
+    candles: rows.map(r=>({ t:r[0], o:+r[1], h:+r[2], l:+r[3], c:+r[4] })),
+    volumes: rows.map(r=>+r[5]),
+    hasVolume:true
+  };
+}
+
+async function fetchCryptoCoinGecko(asset){
+  const ohlcRes = await fetch(`https://api.coingecko.com/api/v3/coins/${asset.id}/ohlc?vs_currency=usd&days=30`);
+  if(!ohlcRes.ok) throw new Error(`CoinGecko HTTP ${ohlcRes.status}`);
+  const ohlc = await ohlcRes.json(); // [ts,o,h,l,c]
+  const volRes = await fetch(`https://api.coingecko.com/api/v3/coins/${asset.id}/market_chart?vs_currency=usd&days=30&interval=daily`);
+  const volJson = volRes.ok ? await volRes.json() : {total_volumes:[]};
+  const volumes = (volJson.total_volumes||[]).map(v=>v[1]);
+  return {
+    candles: ohlc.map(r=>({t:r[0], o:r[1], h:r[2], l:r[3], c:r[4]})),
+    volumes,
+    hasVolume: volumes.length>0
+  };
+}
+
+async function fetchCrypto(asset){
+  try{
+    return await fetchCryptoBinance(asset);
+  }catch(binanceErr){
+    console.warn('Binance fetch failed, falling back to CoinGecko:', binanceErr.message);
+    try{
+      return await fetchCryptoCoinGecko(asset);
+    }catch(cgErr){
+      throw new Error(`Both data sources failed (Binance: ${binanceErr.message} / CoinGecko: ${cgErr.message})`);
+    }
+  }
+}
+
+const TWELVE_DATA_KEY = '237d73bd12d443ccb1d06f96dcd22fc2'; // visible client-side — fine for a free-tier key, move server-side before scaling
+
+async function fetchTwelveData(symbol){
+  const res = await fetch(`https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(symbol)}&interval=4h&outputsize=180&apikey=${TWELVE_DATA_KEY}`);
+  if(!res.ok) throw new Error(`Twelve Data HTTP ${res.status}`);
+  const json = await res.json();
+  if(json.status === 'error') throw new Error(json.message || 'Twelve Data returned an error');
+  if(!json.values || !json.values.length) throw new Error('Twelve Data returned no values for this symbol');
+  const values = [...json.values].reverse(); // Twelve Data returns newest-first
+  const candles = values.map(v=>({
+    t: new Date(v.datetime).getTime(),
+    o:+v.open, h:+v.high, l:+v.low, c:+v.close
+  }));
+  const volumes = values.map(v=> v.volume!=null ? +v.volume : 0);
+  return { candles, volumes, hasVolume: volumes.some(v=>v>0) };
+}
+
+
+/* ============================================================
+   INDICATOR MATH
+   ============================================================ */
+function sma(arr, period){
+  const out = [];
+  for(let i=0;i<arr.length;i++){
+    if(i<period-1){out.push(null); continue;}
+    let sum=0; for(let j=i-period+1;j<=i;j++) sum+=arr[j];
+    out.push(sum/period);
+  }
+  return out;
+}
+function ema(arr, period){
+  const out = []; const k = 2/(period+1);
+  let prev=null;
+  for(let i=0;i<arr.length;i++){
+    if(arr[i]==null){out.push(null); continue;}
+    if(prev==null){ prev = arr[i]; out.push(prev); continue; }
+    prev = arr[i]*k + prev*(1-k);
+    out.push(prev);
+  }
+  return out;
+}
+function rsi(closes, period=14){
+  const out = new Array(closes.length).fill(null);
+  let gains=0, losses=0;
+  for(let i=1;i<=period && i<closes.length;i++){
+    const diff = closes[i]-closes[i-1];
+    if(diff>=0) gains+=diff; else losses-=diff;
+  }
+  let avgGain=gains/period, avgLoss=losses/period;
+  out[period] = 100 - (100/(1+ (avgLoss===0?100:avgGain/avgLoss)));
+  for(let i=period+1;i<closes.length;i++){
+    const diff = closes[i]-closes[i-1];
+    const gain = diff>0?diff:0, loss = diff<0?-diff:0;
+    avgGain = (avgGain*(period-1)+gain)/period;
+    avgLoss = (avgLoss*(period-1)+loss)/period;
+    const rs = avgLoss===0 ? 100 : avgGain/avgLoss;
+    out[i] = 100 - (100/(1+rs));
+  }
+  return out;
+}
+function macd(closes){
+  const ema12 = ema(closes,12), ema26 = ema(closes,26);
+  const line = closes.map((_,i)=> (ema12[i]!=null && ema26[i]!=null) ? ema12[i]-ema26[i] : null);
+  const cleanLine = line.map(v=>v==null?0:v);
+  const signal = ema(cleanLine,9);
+  const hist = line.map((v,i)=> (v!=null && signal[i]!=null) ? v-signal[i] : null);
+  return { line, signal, hist };
+}
+function atr(candles, period=14){
+  const trs = candles.map((c,i)=>{
+    if(i===0) return c.h-c.l;
+    const prevClose = candles[i-1].c;
+    return Math.max(c.h-c.l, Math.abs(c.h-prevClose), Math.abs(c.l-prevClose));
+  });
+  return ema(trs, period);
+}
+function bollinger(closes, period=20, mult=2){
+  const mid = sma(closes, period);
+  const upper=[], lower=[];
+  for(let i=0;i<closes.length;i++){
+    if(mid[i]==null){upper.push(null); lower.push(null); continue;}
+    let sum=0; for(let j=i-period+1;j<=i;j++) sum += Math.pow(closes[j]-mid[i],2);
+    const sd = Math.sqrt(sum/period);
+    upper.push(mid[i]+mult*sd); lower.push(mid[i]-mult*sd);
+  }
+  return {mid, upper, lower};
+}
+
+/* ============================================================
+   CONFLUENCE ENGINE
+   ============================================================ */
+function buildSignal(candles, volumes, hasVolume){
+  const closes = candles.map(c=>c.c);
+  const n = closes.length;
+  const last = n-1;
+  const price = closes[last];
+
+  const ema20 = ema(closes,20), ema50 = ema(closes,50);
+  const rsiArr = rsi(closes,14);
+  const macdRes = macd(closes);
+  const bb = bollinger(closes,20,2);
+  const atrArr = atr(candles,14);
+
+  const votes = [];
+
+  // 1. Trend — EMA20 vs EMA50 vs price
+  let trendScore = 0;
+  if(ema20[last]!=null && ema50[last]!=null){
+    if(price>ema20[last] && ema20[last]>ema50[last]) trendScore = 1;
+    else if(price<ema20[last] && ema20[last]<ema50[last]) trendScore = -1;
+    else if(price>ema50[last]) trendScore = 0.4;
+    else trendScore = -0.4;
+  }
+  votes.push({key:'Trend', weight:0.30, score:trendScore,
+    note: trendScore>0.5 ? 'Price above both EMA20 and EMA50, both aligned up — uptrend intact.'
+        : trendScore<-0.5 ? 'Price below both EMA20 and EMA50, both aligned down — downtrend intact.'
+        : 'EMAs are mixed or flattening — no clean trend.'});
+
+  // 2. Momentum — RSI
+  const r = rsiArr[last];
+  let rsiScore = 0;
+  if(r!=null){
+    if(r<30) rsiScore = 0.8;
+    else if(r>70) rsiScore = -0.8;
+    else rsiScore = (50-r)/50 * 0.3; // mild lean
+  }
+  votes.push({key:'Momentum (RSI)', weight:0.20, score:rsiScore,
+    note: r==null ? 'Not enough history yet.'
+        : r<30 ? `RSI at ${r.toFixed(1)} — oversold, tilts toward a bounce.`
+        : r>70 ? `RSI at ${r.toFixed(1)} — overbought, tilts toward a pullback.`
+        : `RSI at ${r.toFixed(1)} — neutral zone.`});
+
+  // 3. MACD histogram direction
+  const h = macdRes.hist[last], hPrev = macdRes.hist[last-1];
+  let macdScore = 0;
+  if(h!=null){
+    macdScore = Math.max(-1, Math.min(1, h / (Math.abs(price)*0.002 || 1)));
+    if(hPrev!=null){ if(h>hPrev) macdScore += 0.15*Math.sign(h||1); }
+    macdScore = Math.max(-1,Math.min(1,macdScore));
+  }
+  votes.push({key:'MACD', weight:0.25, score:macdScore,
+    note: h==null ? 'Not enough history yet.'
+        : h>0 ? 'Histogram positive — bullish momentum building.'
+        : 'Histogram negative — bearish momentum building.'});
+
+  // 4. Bollinger position
+  let bbScore = 0;
+  if(bb.upper[last]!=null){
+    const width = bb.upper[last]-bb.lower[last];
+    const pos = width>0 ? (price - bb.lower[last]) / width : 0.5; // 0=lower band,1=upper band
+    bbScore = (0.5-pos)*1.6;
+    bbScore = Math.max(-1,Math.min(1,bbScore));
+  }
+  votes.push({key:'Bollinger', weight:0.15, score:bbScore,
+    note: bb.upper[last]==null ? 'Not enough history yet.'
+        : bbScore>0.3 ? 'Price is near the lower band — statistically stretched down.'
+        : bbScore<-0.3 ? 'Price is near the upper band — statistically stretched up.'
+        : 'Price sits mid-band — no stretch either way.'});
+
+  // 5. Volume / volatility confirmation
+  let volScore = 0, volNote = '';
+  if(hasVolume && volumes.length>=20){
+    const recent = volumes[volumes.length-1];
+    const avg20 = volumes.slice(-20).reduce((a,b)=>a+b,0)/20;
+    const ratio = avg20>0 ? recent/avg20 : 1;
+    const dirSign = trendScore + macdScore >= 0 ? 1 : -1;
+    volScore = Math.max(-1,Math.min(1, (ratio-1) * dirSign * 0.8));
+    volNote = ratio>1.2 ? `Volume running ${(ratio*100).toFixed(0)}% of the 20-day average — move has participation.`
+            : ratio<0.8 ? `Volume running ${(ratio*100).toFixed(0)}% of the 20-day average — thin, low conviction.`
+            : 'Volume roughly average — no strong confirmation either way.';
+  } else {
+    volNote = 'No reliable volume data for this instrument (spot FX/OTC gold) — using volatility expansion as a proxy instead.';
+    const atrNow = atrArr[last], atrPrev = atrArr[last-5>=0?last-5:0];
+    if(atrNow!=null && atrPrev!=null && atrPrev>0){
+      const expand = (atrNow/atrPrev - 1);
+      volScore = Math.max(-1,Math.min(1, expand * (trendScore>=0?1:-1) * 2));
+    }
+  }
+  votes.push({key: hasVolume?'Volume':'Volatility Δ', weight:0.10, score:volScore, note:volNote});
+
+  const totalWeight = votes.reduce((a,v)=>a+v.weight,0);
+  const raw = votes.reduce((a,v)=>a+v.weight*v.score,0)/totalWeight; // -1..1
+  const score100 = Math.round((raw+1)/2*100);
+
+  let bias, biasColor;
+  if(score100>=65){bias='BULLISH'; biasColor='var(--bull)';}
+  else if(score100<=35){bias='BEARISH'; biasColor='var(--bear)';}
+  else {bias='NEUTRAL / NO EDGE'; biasColor='var(--neutral)';}
+
+  const direction = score100>=65 ? 1 : score100<=35 ? -1 : 0;
+  const atrVal = atrArr[last] || (price*0.01);
+
+  let entry=null, sl=null, tp=null, rr=null;
+  if(direction!==0){
+    entry = price;
+    sl = direction===1 ? entry - 1.5*atrVal : entry + 1.5*atrVal;
+    const riskDist = Math.abs(entry-sl);
+    tp = direction===1 ? entry + 2*riskDist : entry - 2*riskDist;
+    rr = '1 : 2';
+  }
+
+  return { votes, score100, bias, biasColor, direction, entry, sl, tp, rr, atrVal, indicators:{ema20:ema20[last], ema50:ema50[last], rsi:r, macdHist:h, bbUpper:bb.upper[last], bbLower:bb.lower[last], atr:atrVal}, price };
+}
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+function fmtPrice(v, symbol){
+  if(v==null) return '—';
+  const decimals = symbol && symbol.includes('JPY') ? 3 : (v<10 ? 4 : v<1000 ? 2 : 2);
+  return v.toLocaleString(undefined,{minimumFractionDigits:decimals, maximumFractionDigits:decimals});
+}
+
+function renderClassTabs(){
+  const wrap = document.getElementById('classTabs');
+  wrap.innerHTML = '';
+  Object.entries(ASSET_CLASSES).forEach(([key,cfg])=>{
+    const btn = document.createElement('div');
+    btn.className = 'class-tab' + (state.cls===key?' active':'');
+    btn.innerHTML = `<span class="dot"></span>${cfg.label}`;
+    btn.onclick = ()=>{ state.cls=key; state.assetIdx=0; renderClassTabs(); renderAssetRow(); loadAsset(); };
+    wrap.appendChild(btn);
+  });
+}
+
+function renderAssetRow(){
+  const wrap = document.getElementById('assetRow');
+  wrap.innerHTML = '';
+  ASSET_CLASSES[state.cls].assets.forEach((a,i)=>{
+    const chip = document.createElement('div');
+    chip.className = 'asset-chip' + (i===state.assetIdx?' active':'') + (a.disabled?' disabled':'');
+    chip.textContent = a.symbol;
+    if(!a.disabled){
+      chip.onclick = ()=>{ state.assetIdx=i; renderAssetRow(); loadAsset(); };
+    }
+    wrap.appendChild(chip);
+  });
+}
+
+function renderChart(candles, symbol){
+  const ctx = document.getElementById('priceChart');
+  const labels = candles.map(c=> new Date(c.t).toLocaleDateString(undefined,{month:'short',day:'numeric'}));
+  const closes = candles.map(c=>c.c);
+  if(state.chart) state.chart.destroy();
+  state.chart = new Chart(ctx, {
+    type:'line',
+    data:{ labels, datasets:[{
+      data:closes, borderColor:'#E8A33D', borderWidth:2, pointRadius:0, tension:0.15,
+      fill:true, backgroundColor:'rgba(232,163,61,0.06)'
+    }]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}, tooltip:{mode:'index', intersect:false}},
+      scales:{
+        x:{grid:{color:'#1A2029'}, ticks:{color:'#7C879C', maxTicksLimit:8, font:{family:'JetBrains Mono', size:10}}},
+        y:{grid:{color:'#1A2029'}, ticks:{color:'#7C879C', font:{family:'JetBrains Mono', size:10}}}
+      }
+    }
+  });
+}
+
+function renderIndicatorGrid(ind, symbol){
+  const grid = document.getElementById('indicatorGrid');
+  const rows = [
+    ['EMA 20', fmtPrice(ind.ema20, symbol)],
+    ['EMA 50', fmtPrice(ind.ema50, symbol)],
+    ['RSI (14)', ind.rsi!=null ? ind.rsi.toFixed(1) : '—'],
+    ['MACD Hist', ind.macdHist!=null ? ind.macdHist.toFixed(4) : '—'],
+    ['Bollinger Upper', fmtPrice(ind.bbUpper, symbol)],
+    ['Bollinger Lower', fmtPrice(ind.bbLower, symbol)],
+    ['ATR (14)', fmtPrice(ind.atr, symbol)],
+  ];
+  grid.innerHTML = rows.map(([k,v])=>`<div class="ind-box"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+}
+
+function renderConfMeter(votes){
+  const wrap = document.getElementById('confMeter');
+  wrap.innerHTML = votes.map(v=>{
+    const pct = Math.round(((v.score+1)/2)*100);
+    const color = v.score>0.15 ? 'var(--bull)' : v.score<-0.15 ? 'var(--bear)' : 'var(--neutral)';
+    return `<div class="row">
+      <div class="lbl">${v.key}</div>
+      <div class="track"><div class="fill" style="width:${pct}%; left:0; background:${color};"></div></div>
+      <div class="val">${v.score>=0?'+':''}${v.score.toFixed(2)}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderSignal(sig, symbol){
+  document.getElementById('signalTime').textContent = new Date().toLocaleTimeString();
+  const bandWrap = document.getElementById('scoreBandWrap');
+  bandWrap.innerHTML = `<div class="score-band" style="background:${sig.bias.includes('BULL')?'var(--bull-dim)':sig.bias.includes('BEAR')?'var(--bear-dim)':'var(--panel-2)'}">
+    <div class="bias" style="color:${sig.biasColor}">${sig.bias}</div>
+    <div class="score">Confluence score ${sig.score100} / 100</div>
+  </div>`;
+
+  const levels = document.getElementById('tradeLevels');
+  if(sig.direction===0){
+    levels.innerHTML = `<div class="empty">Score is inside the neutral band (35–65) — the model isn't proposing a trade. This is itself information: sitting out is a valid position.</div>`;
+  } else {
+    levels.innerHTML = `
+      <div class="row"><span class="k">Entry (market)</span><span class="v entry">${fmtPrice(sig.entry, symbol)}</span></div>
+      <div class="row"><span class="k">Stop-loss</span><span class="v sl">${fmtPrice(sig.sl, symbol)}</span></div>
+      <div class="row"><span class="k">Take-profit</span><span class="v tp">${fmtPrice(sig.tp, symbol)}</span></div>
+      <div class="row"><span class="k">Risk:Reward</span><span class="rr-pill">${sig.rr}</span></div>
+    `;
+  }
+
+  const reasoning = document.getElementById('reasoning');
+  reasoning.innerHTML = '<b style="color:var(--text)">Why:</b><ul>' + sig.votes.map(v=>`<li>${v.note}</li>`).join('') + '</ul>' +
+    (sig.direction!==0 ? `<div style="margin-top:8px;">Stop is 1.5× ATR from entry; target is set at 2× the risk distance. Adjust position size so the stop-to-entry distance equals the amount you're actually willing to lose.</div>` : '');
+
+  // log — persisted across sessions (see saveSignalToLog / loadSignalLog)
+  saveSignalToLog({ time:new Date().toISOString(), symbol, bias:sig.bias, score:sig.score100, entry:sig.entry, sl:sig.sl, tp:sig.tp });
+}
+
+const LOG_KEY = 'xtr8:signal-log';
+
+async function loadSignalLog(){
+  try{
+    const res = await window.storage.get(LOG_KEY, false);
+    state.log = res && res.value ? JSON.parse(res.value) : [];
+  }catch(e){
+    state.log = []; // key doesn't exist yet — first run
+  }
+  renderLog();
+}
+
+async function saveSignalToLog(entry){
+  state.log.unshift(entry);
+  state.log = state.log.slice(0,100); // cap history so a single key stays small
+  try{
+    await window.storage.set(LOG_KEY, JSON.stringify(state.log), false);
+  }catch(e){
+    console.error('Could not persist signal log:', e);
+  }
+  renderLog();
+}
+
+async function clearSignalLog(){
+  state.log = [];
+  try{ await window.storage.delete(LOG_KEY, false); }catch(e){ /* already empty */ }
+  renderLog();
+}
+
+function renderLog(){
+  const wrap = document.getElementById('logWrap');
+  if(!state.log.length){ wrap.innerHTML = '<div class="empty">No signals logged yet. Every signal you view gets saved here permanently — across sessions — so you can build an honest track record instead of taking anyone\'s word for it.</div>'; return; }
+  wrap.innerHTML = `<table class="log"><thead><tr><th>Time</th><th>Asset</th><th>Bias</th><th>Score</th><th>Entry</th></tr></thead><tbody>
+    ${state.log.map(l=>`<tr><td>${new Date(l.time).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</td><td>${l.symbol}</td><td>${l.bias}</td><td>${l.score}</td><td>${fmtPrice(l.entry,l.symbol)}</td></tr>`).join('')}
+  </tbody></table>
+  <div style="margin-top:10px; text-align:right;"><button id="clearLogBtn" style="background:none; border:1px solid var(--line); color:var(--muted); font-family:'JetBrains Mono'; font-size:11px; padding:5px 10px; border-radius:6px; cursor:pointer;">Clear history</button></div>`;
+  document.getElementById('clearLogBtn').onclick = clearSignalLog;
+}
+
+async function renderNews(assetName){
+  const box = document.getElementById('newsBox');
+  box.innerHTML = '<div class="loading">Checking for expert analysis…</div>';
+  try{
+    const res = await fetch(`/.netlify/functions/chatter?class=${state.cls}`);
+    if(!res.ok) throw new Error(`Function HTTP ${res.status}`);
+    const json = await res.json();
+    if(json.error) throw new Error(json.error);
+    if(!json.items || json.items.length===0) throw new Error('No items returned');
+    box.innerHTML = json.items.map(p=>`<div class="news-item">
+      <a href="${p.link}" target="_blank" rel="noopener">${p.title}</a>
+      <div class="news-meta">${json.source} · ${p.pubDate ? new Date(p.pubDate).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : ''}</div>
+      ${p.summary ? `<div class="news-meta" style="margin-top:4px; color:var(--muted);">${p.summary}…</div>` : ''}
+    </div>`).join('');
+  }catch(e){
+    box.innerHTML = `<div class="empty">Live analysis unavailable right now (${e.message}). This feature needs the companion Netlify Function (<span class="mono">netlify/functions/chatter.js</span>) deployed alongside this page — it won't work from a bare static file, and it won't work in Claude's preview either, only on an actual Netlify deploy with the function folder included.</div>`;
+  }
+}
+
+/* ---------- Main loader ---------- */
+async function loadAsset(){
+  const cfg = ASSET_CLASSES[state.cls];
+  const asset = cfg.assets[state.assetIdx];
+  document.getElementById('assetTitle').textContent = asset.symbol;
+  document.getElementById('assetSub').textContent = asset.name;
+  document.getElementById('assetTag').textContent = 'loading';
+  document.getElementById('lastUpdated').textContent = '';
+  document.getElementById('pxNow').textContent = '—';
+  document.getElementById('pxChg').textContent = '';
+  const errBanner = document.getElementById('errorBanner');
+  errBanner.style.display = 'none';
+  errBanner.textContent = '';
+
+  try{
+    let data;
+    if(state.cls==='crypto') data = await fetchCrypto(asset);
+    else data = await fetchTwelveData(asset.symbol); // forex + commodities: real intraday data
+
+    const candles = data.candles;
+    if(!candles || candles.length<30) throw new Error('insufficient data');
+
+    const last = candles[candles.length-1].c;
+    const prev = candles[candles.length-2].c;
+    const chg = ((last-prev)/prev*100);
+
+    document.getElementById('pxNow').textContent = fmtPrice(last, asset.symbol);
+    const chgEl = document.getElementById('pxChg');
+    chgEl.textContent = (chg>=0?'+':'') + chg.toFixed(2) + '%';
+    chgEl.className = 'chg mono ' + (chg>=0?'up':'down');
+    document.getElementById('assetTag').textContent = 'live';
+    document.getElementById('lastUpdated').textContent = 'updated ' + new Date().toLocaleTimeString();
+
+    renderChart(candles, asset.symbol);
+    const sig = buildSignal(candles, data.volumes, data.hasVolume);
+    renderConfMeter(sig.votes);
+    renderSignal(sig, asset.symbol);
+    renderIndicatorGrid(sig.indicators, asset.symbol);
+    renderNews(asset.name);
+  }catch(err){
+    document.getElementById('assetTag').textContent = 'error';
+    const errBanner = document.getElementById('errorBanner');
+    errBanner.style.display = 'block';
+    errBanner.textContent = `Couldn't load ${asset.symbol}: ${err.message}. This is a live public API — it may be temporarily rate-limited. Try a different asset, or wait ~30s and reselect this one.`;
+    document.getElementById('reasoning').innerHTML = '';
+    document.getElementById('scoreBandWrap').innerHTML = '';
+    document.getElementById('tradeLevels').innerHTML = '';
+    document.getElementById('confMeter').innerHTML = '';
+  }
+}
+
+/* ---------- View toggle ---------- */
+document.getElementById('btnSimple').onclick = ()=>{
+  state.quant=false;
+  document.body.classList.remove('quant');
+  document.getElementById('btnSimple').classList.add('active');
+  document.getElementById('btnQuant').classList.remove('active');
+};
+document.getElementById('btnQuant').onclick = ()=>{
+  state.quant=true;
+  document.body.classList.add('quant');
+  document.getElementById('btnQuant').classList.add('active');
+  document.getElementById('btnSimple').classList.remove('active');
+};
+
+// (moved into initApp(), called lazily on first visit to the app screen)
+
+</script>
+</body>
+</html>
