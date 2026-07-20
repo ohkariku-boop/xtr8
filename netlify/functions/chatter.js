@@ -1,55 +1,51 @@
 // netlify/functions/chatter.js
 //
-// Fetches real FXStreet RSS feeds server-side (no CORS restriction applies
-// server-to-server) and returns clean JSON for the frontend to render.
-// This is legitimate use of FXStreet's public syndication feeds — headline,
-// link, and a short summary only. It never reproduces full articles.
+// Pulls real financial news + AI sentiment scoring from Alpha Vantage's
+// News & Sentiment endpoint — an API actually built for programmatic access,
+// not a browser-facing page. Free tier: 25 requests/day, so this is cached
+// for 15 minutes and should not be hammered by rapid refreshing.
+
+const AV_KEY = 'LP5GKDF12RRQTENI';
 
 exports.handler = async (event) => {
-  const cls = (event.queryStringParameters && event.queryStringParameters.class) || 'forex';
+  const params = event.queryStringParameters || {};
+  const cls = params.class || 'forex';
+  const ticker = params.ticker || '';
 
-  const feedMap = {
-    crypto: 'https://www.fxstreet.com/rss/crypto',
-    forex: 'https://www.fxstreet.com/rss/analysis',   // analyst/bank commentary, not just headlines
-    commodities: 'https://www.fxstreet.com/rss/news'   // covers gold/oil/silver moves
-  };
-  const url = feedMap[cls] || feedMap.forex;
+  let query;
+  if (cls === 'crypto' && ticker) {
+    query = `tickers=CRYPTO:${ticker}`;
+  } else if (cls === 'forex' && ticker) {
+    query = `tickers=FOREX:${ticker}`;
+  } else {
+    // Commodities have no direct ticker in this API — fall back to relevant topics
+    query = `topics=economy_macro,energy_transportation,financial_markets`;
+  }
+
+  const url = `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&${query}&limit=6&apikey=${AV_KEY}`;
 
   try {
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept': 'application/rss+xml, application/xml, text/xml, */*',
-        'Accept-Language': 'en-US,en;q=0.9'
-      }
-    });
-    if (!res.ok) throw new Error(`FXStreet RSS HTTP ${res.status}`);
-    const xml = await res.text();
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Alpha Vantage HTTP ${res.status}`);
+    const json = await res.json();
 
-    // Minimal dependency-free RSS <item> parser
-    const items = [];
-    const itemRegex = /<item>([\s\S]*?)<\/item>/g;
-    let match;
-    while ((match = itemRegex.exec(xml)) && items.length < 6) {
-      const block = match[1];
-      const pick = (tag) => {
-        const m = block.match(new RegExp(`<${tag}>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\\/${tag}>`));
-        return m ? m[1].trim() : '';
-      };
-      items.push({
-        title: pick('title'),
-        link: pick('link'),
-        pubDate: pick('pubDate'),
-        summary: pick('description').replace(/<[^>]+>/g, '').slice(0, 160)
-      });
-    }
+    if (json.Information) throw new Error('Free-tier daily limit (25 requests/day) likely reached — try again later');
+    if (json.Note) throw new Error('Rate limited — try again in about a minute');
+    if (!json.feed || json.feed.length === 0) throw new Error('No news items returned for this instrument');
 
-    if (items.length === 0) throw new Error('No items parsed from feed');
+    const items = json.feed.slice(0, 6).map(item => ({
+      title: item.title,
+      link: item.url,
+      pubDate: formatAVDate(item.time_published),
+      summary: (item.summary || '').slice(0, 160),
+      source: item.source,
+      sentiment: item.overall_sentiment_label
+    }));
 
     return {
       statusCode: 200,
-      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' },
-      body: JSON.stringify({ source: 'FXStreet', class: cls, items })
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=900' },
+      body: JSON.stringify({ source: 'Alpha Vantage', class: cls, items })
     };
   } catch (err) {
     return {
@@ -59,3 +55,9 @@ exports.handler = async (event) => {
     };
   }
 };
+
+function formatAVDate(raw){
+  // Alpha Vantage format: YYYYMMDDTHHMMSS
+  if (!raw || raw.length < 15) return null;
+  return `${raw.slice(0,4)}-${raw.slice(4,6)}-${raw.slice(6,8)}T${raw.slice(9,11)}:${raw.slice(11,13)}:${raw.slice(13,15)}`;
+}
