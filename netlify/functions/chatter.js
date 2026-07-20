@@ -17,8 +17,10 @@ exports.handler = async (event) => {
     query = `tickers=CRYPTO:${ticker}`;
   } else if (cls === 'forex' && ticker) {
     query = `tickers=FOREX:${ticker}`;
+  } else if (cls === 'commodities' && ticker) {
+    query = `tickers=${ticker}`; // e.g. GLD, SLV, USO — ETF proxy, no prefix needed
   } else {
-    // Commodities have no direct ticker in this API — fall back to relevant topics
+    // No ticker available — fall back to relevant topics
     query = `topics=economy_macro,energy_transportation,financial_markets`;
   }
 
