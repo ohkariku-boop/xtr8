@@ -17,7 +17,11 @@ exports.handler = async (event) => {
 
   try {
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'Xtr8/1.0 (market signal terminal; contact via app)' }
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'application/rss+xml, application/xml, text/xml, */*',
+        'Accept-Language': 'en-US,en;q=0.9'
+      }
     });
     if (!res.ok) throw new Error(`FXStreet RSS HTTP ${res.status}`);
     const xml = await res.text();
