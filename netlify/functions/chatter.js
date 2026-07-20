@@ -29,8 +29,8 @@ exports.handler = async (event) => {
     if (!res.ok) throw new Error(`Alpha Vantage HTTP ${res.status}`);
     const json = await res.json();
 
-    if (json.Information) throw new Error('Free-tier daily limit (25 requests/day) likely reached — try again later');
-    if (json.Note) throw new Error('Rate limited — try again in about a minute');
+    if (json.Information) throw new Error(`Alpha Vantage says: "${json.Information}"`);
+    if (json.Note) throw new Error(`Alpha Vantage says: "${json.Note}"`);
     if (!json.feed || json.feed.length === 0) throw new Error('No news items returned for this instrument');
 
     const items = json.feed.slice(0, 6).map(item => ({
